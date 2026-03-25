@@ -50,6 +50,8 @@ const TEMPLATE = {
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 let state = loadState();
 let currentPage = 0;
+const historyStack = [];
+const HISTORY_LIMIT = 30;
 
 /* タブ内の物理ページ位置（タブごとに保持） */
 const subPageByTab = Object.create(null); // { [tabIndex]: number }
@@ -63,9 +65,12 @@ function render(){
   const tabsDiv = document.getElementById("tabs");
   tabsDiv.innerHTML = "";
   state.pages.forEach((p, i) => {
-    const b = document.createElement("div");
+    const b = document.createElement("button");
+    b.type = "button";
     b.className = `tab ${i===currentPage ? "active" : ""}`;
     b.textContent = `${i+1}. ${p.title}`;
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", i===currentPage ? "true" : "false");
     b.onclick = () => {
       currentPage = i;
       if(subPageByTab[currentPage] == null) subPageByTab[currentPage] = 0;
@@ -104,6 +109,7 @@ function render(){
   stage.appendChild(wrap);
 
   persist();
+  syncUndoButton();
 }
 
 document.getElementById("btnPrevSub").onclick = () => {
@@ -120,6 +126,10 @@ document.getElementById("btnNextSub").onclick = () => {
 
 // 任意: キーボード左右で切替（デスクトップ用）
 document.addEventListener("keydown", (e)=>{
+  if(e.key === "Escape" && modal.classList.contains("show")){
+    closeModal();
+    return;
+  }
   if(modal.classList.contains("show")) return;
   if(e.key === "ArrowLeft") document.getElementById("btnPrevSub").click();
   if(e.key === "ArrowRight") document.getElementById("btnNextSub").click();
@@ -324,9 +334,21 @@ function createPageBlocks(idx, isExport){
       const ctl = document.createElement("div");
       ctl.style.display="flex"; ctl.style.gap="8px"; ctl.style.padding="4px 0";
       const add = document.createElement("button"); add.className="btn"; add.textContent="＋ 行を追加";
-      add.onclick=()=>{ f.rows.push({scene:"",fact:"",support:""}); render(); };
+      add.onclick=()=>{
+        snapshotState();
+        f.rows.push({scene:"",fact:"",support:""});
+        showToast("行を追加しました");
+        render();
+      };
       const del = document.createElement("button"); del.className="btn"; del.textContent="− 削除";
-      del.onclick=()=>{ if(f.rows.length>1) f.rows.pop(); render(); };
+      del.onclick=()=>{
+        if(f.rows.length>1){
+          snapshotState();
+          f.rows.pop();
+          showToast("行を削除しました");
+          render();
+        }
+      };
       ctl.appendChild(add); ctl.appendChild(del);
       blocks.push(wrap(ctl));
     }
@@ -425,6 +447,7 @@ function openDateModal(pIdx, key, lbl){
   };
   document.getElementById("m-close").onclick = closeModal;
   modal.classList.add("show");
+  modal.setAttribute("aria-hidden", "false");
 }
 
 function openTextModal(pIdx, key, lbl){
@@ -443,11 +466,13 @@ function openTextModal(pIdx, key, lbl){
   };
   document.getElementById("m-close").onclick = closeModal;
   modal.classList.add("show");
+  modal.setAttribute("aria-hidden", "false");
 }
 modal.addEventListener("click",(e)=>{ if(e.target===modal) closeModal(); });
 
 function closeModal(){
   modal.classList.remove("show");
+  modal.setAttribute("aria-hidden", "true");
   render(); // 入力後にページ数が変わるので再計算
 }
 
@@ -463,8 +488,11 @@ function openPhotoModal(pIdx, key){
     </div>
     <div class="controls">
       <button class="btn" id="e-pick">📸 選択</button>
+      <button class="btn" id="e-zoom-in">＋ 拡大</button>
+      <button class="btn" id="e-zoom-out">− 縮小</button>
       <button class="btn" id="e-rot">🔄 回転</button>
       <button class="btn" id="e-del">🗑 削除</button>
+      <button class="btn" id="e-center">🎯 中央</button>
       <button class="btn" id="e-done">✅ 完了</button>
     </div>
     <div style="margin-top:10px;">
@@ -472,11 +500,15 @@ function openPhotoModal(pIdx, key){
     </div>
   `;
   modal.classList.add("show");
+  modal.setAttribute("aria-hidden", "false");
 
   document.getElementById("e-pick").onclick = ()=> fileInput.click();
-  document.getElementById("e-rot").onclick = ()=>{ ph.r = ((ph.r||0)+90)%360; syncEditor(); };
-  document.getElementById("e-del").onclick = ()=>{ ph.src=""; ph.s=1; ph.x=0; ph.y=0; ph.r=0; syncEditor(true); };
-  document.getElementById("e-done").onclick = ()=>{ ph.cap = document.getElementById("e-cap").value; closeModal(); };
+  document.getElementById("e-zoom-in").onclick = ()=>{ snapshotState(); ph.s = Math.min(3, (ph.s||1) + 0.1); syncEditor(); };
+  document.getElementById("e-zoom-out").onclick = ()=>{ snapshotState(); ph.s = Math.max(0.5, (ph.s||1) - 0.1); syncEditor(); };
+  document.getElementById("e-rot").onclick = ()=>{ snapshotState(); ph.r = ((ph.r||0)+90)%360; syncEditor(); };
+  document.getElementById("e-del").onclick = ()=>{ snapshotState(); ph.src=""; ph.s=1; ph.x=0; ph.y=0; ph.r=0; syncEditor(true); };
+  document.getElementById("e-center").onclick = ()=>{ snapshotState(); ph.x=0; ph.y=0; ph.s=1; ph.r=0; syncEditor(); };
+  document.getElementById("e-done").onclick = ()=>{ setByPath(state.pages[pIdx].fields, `${key}.cap`, document.getElementById("e-cap").value); closeModal(); };
 
   attachGestures();   // ←ここはそのまま
   syncEditor();
@@ -487,8 +519,10 @@ fileInput.onchange = (e)=>{
   if(!f) return;
   const reader = new FileReader();
   reader.onload = (ev)=>{
+    snapshotState();
     phCtx.ph.src = ev.target.result;
     phCtx.ph.s=1; phCtx.ph.x=0; phCtx.ph.y=0; phCtx.ph.r=0;
+    showToast("写真を読み込みました");
     openPhotoModal(phCtx.pIdx, phCtx.key);
   };
   reader.readAsDataURL(f);
@@ -549,6 +583,7 @@ function attachGestures(){
 
   canvas.onpointerdown = (e)=>{
     if(!phCtx?.ph?.src) return;
+    if(active.size === 0) snapshotState();
     canvas.setPointerCapture(e.pointerId);
     active.set(e.pointerId, {x:e.clientX, y:e.clientY});
     recalcBaseAfterChange();
@@ -588,6 +623,13 @@ function attachGestures(){
   };
   canvas.onpointerup = onEnd;
   canvas.onpointercancel = onEnd;
+  canvas.onwheel = (e)=>{
+    if(!phCtx?.ph?.src) return;
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.08 : -0.08;
+    phCtx.ph.s = clamp((phCtx.ph.s || 1) + delta, 0.5, 3.0);
+    syncEditor();
+  };
 }
 
 /* =========================
@@ -596,6 +638,27 @@ function attachGestures(){
 const prog = document.getElementById("progress");
 const pText = document.getElementById("p-text");
 const pBar  = document.getElementById("p-bar");
+const toast = document.getElementById("toast");
+let toastTimer = null;
+
+function showToast(message){
+  if(!toast) return;
+  toast.textContent = message;
+  toast.classList.add("show");
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>toast.classList.remove("show"), 2200);
+}
+
+function snapshotState(){
+  historyStack.push(clone(state));
+  if(historyStack.length > HISTORY_LIMIT) historyStack.shift();
+  syncUndoButton();
+}
+
+function syncUndoButton(){
+  const btnUndo = document.getElementById("btnUndo");
+  if(btnUndo) btnUndo.disabled = historyStack.length === 0;
+}
 
 document.getElementById("btnPrintPdf").onclick = async ()=>{
   if(!isMobile) await printAll();
@@ -673,6 +736,7 @@ async function genPDF(){
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 60000);
   prog.style.display="none";
+  showToast("PDFを保存しました");
 }
 
 /* =========================
@@ -686,23 +750,41 @@ document.getElementById("btnExport").onclick = ()=>{
   a.download = `supportbook_data_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 60_000);
+  showToast("データを保存しました");
+};
+document.getElementById("btnUndo").onclick = ()=>{
+  if(historyStack.length === 0) return;
+  state = historyStack.pop();
+  showToast("ひとつ前に戻しました");
+  render();
 };
 document.getElementById("btnImport").onclick = ()=>{
   const i = document.createElement("input"); i.type="file"; i.accept=".json";
   i.onchange=async(e)=>{
     const file = e.target.files && e.target.files[0];
     if(!file) return;
-    try{ state = normalizeState(JSON.parse(await file.text())); currentPage=0; subPageByTab[0]=0; render(); }
-    catch{ alert("読込失敗"); }
+    try{
+      snapshotState();
+      state = normalizeState(JSON.parse(await file.text()));
+      currentPage=0;
+      subPageByTab[0]=0;
+      showToast("データを読み込みました");
+      render();
+    }
+    catch{
+      alert("読込失敗：JSONファイルの形式を確認してください");
+    }
   };
   i.click();
 };
 document.getElementById("btnReset").onclick = ()=>{
-  if(confirm("リセットしますか？")){
+  if(confirm("入力内容をすべて消去します。よろしいですか？")){
+    snapshotState();
     state=clone(TEMPLATE);
     currentPage=0;
     for(const k of Object.keys(subPageByTab)) delete subPageByTab[k];
     subPageByTab[0]=0;
+    showToast("入力内容をリセットしました");
     render();
   }
 };
@@ -712,6 +794,7 @@ function persist(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }catch(e){
     console.warn("保存に失敗しました。容量上限の可能性があります。", e);
+    showToast("自動保存に失敗しました。容量を確認してください");
   }
 }
 function loadState(){ try{ return normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY))); }catch{ return clone(TEMPLATE); } }
@@ -727,7 +810,15 @@ function normalizeState(obj){
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' })[m]); }
 function getByPath(o,p){ return p.split('.').reduce((x,k)=>x&&x[k], o); }
-function setByPath(o,p,v){ const k=p.split('.'); const last=k.pop(); const t=k.reduce((x,k)=>x[k], o); if(t) t[last]=v; }
+function setByPath(o,p,v){
+  const k=p.split('.');
+  const last=k.pop();
+  const t=k.reduce((x,key)=>x && x[key], o);
+  if(!t) return;
+  if(t[last] === v) return;
+  snapshotState();
+  t[last]=v;
+}
 
 // 初期化
 subPageByTab[0]=0;
