@@ -16,10 +16,11 @@
     <div class="hdr-title">サポートブック作成</div>
   </div>
   <div class="hdr-right">
-    <button class="btn primary" id="btnPrintPdf">出力</button>
-    <button class="btn" id="btnExport">保存</button>
-    <button class="btn" id="btnImport">読込</button>
-    <button class="btn" id="btnReset">リセット</button>
+    <button class="btn primary" id="btnPrintPdf" aria-label="PDFまたは印刷で出力">PDF/印刷</button>
+    <button class="btn" id="btnExport" aria-label="入力データをJSONで保存">データ保存</button>
+    <button class="btn" id="btnImport" aria-label="保存したJSONデータを読み込む">データ読込</button>
+    <button class="btn" id="btnUndo" aria-label="ひとつ前の状態に戻す" disabled>元に戻す</button>
+    <button class="btn" id="btnReset" aria-label="入力内容を全てリセット">全消去</button>
   </div>
 </header>
 
@@ -31,8 +32,8 @@
   <!-- タブ内ページ送り -->
   <div class="pager" id="pager" aria-label="tab page navigation">
     <div class="lr">
-      <button class="btn" id="btnPrevSub">◀</button>
-      <button class="btn" id="btnNextSub">▶</button>
+      <button class="btn" id="btnPrevSub" aria-label="前のページへ">◀ 前へ</button>
+      <button class="btn" id="btnNextSub" aria-label="次のページへ">次へ ▶</button>
     </div>
     <div class="info" id="pageInfo">1/1</div>
     <div style="width:84px;"></div>
@@ -46,8 +47,9 @@
   <div id="p-sub"></div>
   <div class="p-wrap"><div id="p-bar"></div></div>
 </div>
+<div id="toast" role="status" aria-live="polite"></div>
 
-<div class="modal" id="modal">
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="m-content" id="m-content"></div>
 </div>
 
