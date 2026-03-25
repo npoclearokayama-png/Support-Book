@@ -281,7 +281,7 @@ function createPageBlocks(idx, isExport){
     labelRow.innerHTML = `<span>${escapeHtml(currentLabel)}</span>`;
     if(!isExport){
       const editBtn = document.createElement("button");
-      editBtn.className = "btn";
+      editBtn.className = "btn no-export";
       editBtn.style.padding = "2px 6px";
       editBtn.style.fontSize = "10px";
       editBtn.textContent = "✎";
@@ -317,9 +317,9 @@ function createPageBlocks(idx, isExport){
     cap.className = "cap"; cap.textContent = ph?.cap || slot?.label || "写真";
     d.appendChild(cap);
 
-    if(!isExport){
+    if(!isExport && slot){
       const removeBtn = document.createElement("button");
-      removeBtn.className = "btn";
+      removeBtn.className = "btn no-export";
       removeBtn.textContent = "×";
       removeBtn.style.position = "absolute";
       removeBtn.style.top = "4px";
@@ -341,19 +341,30 @@ function createPageBlocks(idx, isExport){
   };
 
   const photoSlotsBlock = (title)=>{
-    const slotWrap = document.createElement("div");
-    slotWrap.className = "meta";
-    p.photoSlots.forEach((slot, slotIndex)=>{
-      const ph = f[slot.key] || createPhotoField(slot.label);
-      slotWrap.appendChild(photo(ph, slot.key, slot.size || "small", slot, slotIndex));
-    });
-    const items = [section(title), wrap(slotWrap)];
+    const items = [section(title)];
+    for(let i=0; i<p.photoSlots.length; i+=3){
+      const rowSlots = p.photoSlots.slice(i, i+3);
+      const slotWrap = document.createElement("div");
+      slotWrap.className = "meta";
+      rowSlots.forEach((slot)=>{
+        const slotIndex = p.photoSlots.findIndex(s=>s.key===slot.key);
+        const ph = f[slot.key] || createPhotoField(slot.label);
+        slotWrap.appendChild(photo(ph, slot.key, slot.size || "small", slot, slotIndex));
+      });
+      items.push(wrap(slotWrap));
+    }
+    if(p.photoSlots.length===0){
+      const empty = document.createElement("div");
+      empty.className = "note";
+      empty.textContent = isExport ? "" : "画像枠がありません";
+      items.push(wrap(empty));
+    }
     if(!isExport){
       const ctl = document.createElement("div");
       ctl.style.display = "flex";
       ctl.style.gap = "8px";
       const add = document.createElement("button");
-      add.className = "btn";
+      add.className = "btn no-export";
       add.textContent = "＋ 画像枠を追加";
       add.onclick = ()=>{
         snapshotState();
@@ -391,6 +402,7 @@ function createPageBlocks(idx, isExport){
     g.appendChild(bUp);
 
     g.appendChild(box("氏名", f.childName, "childName", true));
+    
 
     const bBi = box("生年月日", f.birth, "birth", true);
     bBi.onclick = () => openDateModal(idx, "birth", "生年月日");
@@ -474,18 +486,27 @@ function createPageBlocks(idx, isExport){
 
     blocks.push(section(title));
 
-    const row = document.createElement("div");
-    row.className = "meta";
-    p.photoSlots.forEach((slot, slotIndex)=>{
-      row.appendChild(photo(f[slot.key], slot.key, slot.size || "small", slot, slotIndex));
-    });
-    blocks.push(wrap(row));
+    for(let i=0; i<p.photoSlots.length; i+=3){
+      const row = document.createElement("div");
+      row.className = "meta";
+      p.photoSlots.slice(i, i+3).forEach((slot)=>{
+        const slotIndex = p.photoSlots.findIndex(s=>s.key===slot.key);
+        row.appendChild(photo(f[slot.key], slot.key, slot.size || "small", slot, slotIndex));
+      });
+      blocks.push(wrap(row));
+    }
+    if(p.photoSlots.length===0 && !isExport){
+      const empty = document.createElement("div");
+      empty.className = "note";
+      empty.textContent = "画像枠がありません";
+      blocks.push(wrap(empty));
+    }
     if(!isExport){
       const ctl = document.createElement("div");
       ctl.style.display = "flex";
       ctl.style.gap = "8px";
       const add = document.createElement("button");
-      add.className = "btn";
+      add.className = "btn no-export";
       add.textContent = "＋ 画像枠を追加";
       add.onclick = ()=>{
         snapshotState();
