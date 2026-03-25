@@ -251,6 +251,13 @@
     header, .tabs-container, .pager, #progress, .modal, .no-export { display:none !important; }
     body, main { background:#fff; height:auto; display:block; padding:0; margin:0; overflow:visible; }
     .stage { width:auto; margin:0; display:block; }
+    body.printing-export main { display:none !important; }
+    body.printing-export #exportHost {
+      display:block !important;
+      position:static !important;
+      opacity:1 !important;
+      z-index:9999 !important;
+    }
     .sheet-wrap {
       transform:none !important; width:auto !important; height:auto !important; margin:0 !important;
       page-break-after: always; break-after: page;
