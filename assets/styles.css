@@ -28,13 +28,14 @@
     position:sticky; top:0; z-index:50;
     background:#fff;
     border-bottom:1px solid var(--stroke);
-    padding:10px;
+    padding:10px 12px;
     display:flex;
     justify-content:space-between;
-    align-items:center;
-    gap:8px;
+    align-items:flex-start;
+    gap:12px;
   }
-  .hdr-title{ font-weight:900; font-size:14px; line-height:1.2; }
+  .hdr-left{ display:flex; flex-direction:column; gap:2px; }
+  .hdr-title{ font-weight:900; font-size:16px; line-height:1.2; }
   .hdr-sub{ font-size:11px; color:var(--muted); margin-top:2px; }
   .hdr-right{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
 
@@ -43,6 +44,8 @@
     font-size:13px; font-weight:800; cursor:pointer; user-select:none; transition: transform 0.1s, opacity 0.1s;
   }
   .btn.primary{ background:linear-gradient(135deg,var(--accent), var(--accent2)); color:#fff; border:none; }
+  .btn.secondary{ background:#f8fafc; color:#0b1220; border:1px solid #cbd5e1; }
+  .btn.danger{ background:#fff5f5; color:#b91c1c; border:1px solid #fecaca; }
   .btn:active{ transform: translateY(1px); }
   .btn:disabled{ opacity:.45; cursor:not-allowed; }
 
@@ -126,6 +129,8 @@
   /* Block Items (ページ送りの単位) */
   .p-block { margin-bottom: 5mm; flex-shrink: 0; }
   .p-block-tight { margin-bottom: 2.5mm; flex-shrink: 0; }
+  .p-block .table-wrap,
+  .p-block .box{ box-shadow: 0 2px 8px rgba(15,23,42,0.03); }
 
   /* Components */
   .secTitle{
