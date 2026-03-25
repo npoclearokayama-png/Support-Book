@@ -845,13 +845,12 @@ async function printAll(){
     });
   }
 
-  const style = document.createElement("style");
-  style.innerHTML = `@media print { #exportHost { display:block !important; position:static !important; opacity:1 !important; z-index:9999 !important; } }`;
-  document.head.appendChild(style);
-
+  document.body.classList.add("printing-export");
   window.print();
-
-  setTimeout(()=>{ host.innerHTML = ""; document.head.removeChild(style); }, 1000);
+  setTimeout(()=>{
+    host.innerHTML = "";
+    document.body.classList.remove("printing-export");
+  }, 1000);
 }
 
 async function genPDF(){
