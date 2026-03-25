@@ -47,11 +47,48 @@ const TEMPLATE = {
   ]
 };
 
+const PAGE_TEXT_LABELS = {
+  p1: { updatedDate:"更新日", childName:"氏名", birth:"生年月日", age:"年齢", diagnosis:"診断名（任意）", messageShort:"ひとこと（任意）" },
+  p2: { strengths:"強み", interests:"興味・好きなもの" },
+  p3: { understand:"理解しやすい伝え方", express:"本人の伝え方", supportTips:"家庭での伝え方" },
+  p4: { sensory:"感覚（音・光など）", life:"生活（トイレ・給食など）", learning:"学習（作業・板書など）", schoolArrival:"朝の準備・登校", schoolClass:"授業中", schoolRecess:"休み時間・集団場面", schoolDismissal:"下校・切り替え", panicSigns:"予兆（事実）", panicSupport:"対応（対策）" },
+  p5: { teacherMessage:"メッセージ" }
+};
+
+const PAGE_PHOTO_SLOTS = {
+  p1: [{ key:"photo1", size:"small", label:"好きなもの" }, { key:"photo2", size:"small", label:"安心グッズ" }],
+  p2: [{ key:"photo1", size:"small", label:"得意なこと" }, { key:"photo2", size:"small", label:"好きな場所" }, { key:"photo3", size:"small", label:"落ち着く" }],
+  p3: [{ key:"photo1", size:"small", label:"視覚支援" }, { key:"photo2", size:"small", label:"見本" }, { key:"photo3", size:"small", label:"ルール" }],
+  p4: [{ key:"photo1", size:"small", label:"教室" }, { key:"photo2", size:"small", label:"配慮" }, { key:"photo3", size:"small", label:"クールダウン" }],
+  p5: [{ key:"photo1", size:"small", label:"連絡手段" }, { key:"photo2", size:"small", label:"持ち物" }, { key:"photo3", size:"small", label:"配布物" }],
+};
+
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 let state = loadState();
 let currentPage = 0;
 const historyStack = [];
 const HISTORY_LIMIT = 30;
+
+function createPhotoField(label="写真"){
+  return { src:"", s:1, x:0, y:0, r:0, cap:label };
+}
+
+function ensurePageUI(page){
+  const defaultLabels = PAGE_TEXT_LABELS[page.id] || {};
+  page.textLabels = { ...defaultLabels, ...(page.textLabels || {}) };
+
+  const baseSlots = (PAGE_PHOTO_SLOTS[page.id] || []).map(s=>({ ...s }));
+  page.photoSlots = Array.isArray(page.photoSlots) ? page.photoSlots.map(s=>({ ...s })) : baseSlots;
+  if(page.photoSlots.length === 0 && baseSlots.length) page.photoSlots = baseSlots;
+
+  page.photoSlots.forEach((slot, i)=>{
+    if(!slot.key) slot.key = `photo_custom_${page.id}_${i+1}`;
+    if(!slot.size) slot.size = "small";
+    if(!slot.label) slot.label = `写真${i+1}`;
+    if(!page.fields[slot.key]) page.fields[slot.key] = createPhotoField(slot.label);
+    if(!page.fields[slot.key].cap) page.fields[slot.key].cap = slot.label;
+  });
+}
 
 /* タブ内の物理ページ位置（タブごとに保持） */
 const subPageByTab = Object.create(null); // { [tabIndex]: number }
@@ -61,6 +98,7 @@ let currentSheetsCache = []; // 現在タブのsheets（プレビュー用）
    UI構築・レンダリング
 ========================= */
 function render(){
+  state.pages.forEach(ensurePageUI);
   // Tabs
   const tabsDiv = document.getElementById("tabs");
   tabsDiv.innerHTML = "";
@@ -212,6 +250,7 @@ function createSheetEl() {
  */
 function createPageBlocks(idx, isExport){
   const p = state.pages[idx];
+  ensurePageUI(p);
   const f = p.fields;
   const blocks = [];
 
@@ -230,15 +269,37 @@ function createPageBlocks(idx, isExport){
   };
 
   const box = (lbl, val, key, half=false) => {
+    const currentLabel = p.textLabels[key] || lbl;
     const d = document.createElement("div");
     d.className = `box ${half ? "half" : ""}`;
     d.onclick = () => openTextModal(idx, key, lbl);
-    const v = (val && String(val).trim().length) ? escapeHtml(val) : (isExport ? "" : `<span class="hint">タップして入力</span>`);
-    d.innerHTML = `<div class="lbl">${escapeHtml(lbl)}</div><div class="val">${v}</div>`;
+    const labelRow = document.createElement("div");
+    labelRow.className = "lbl";
+    labelRow.style.display = "flex";
+    labelRow.style.justifyContent = "space-between";
+    labelRow.style.alignItems = "center";
+    labelRow.innerHTML = `<span>${escapeHtml(currentLabel)}</span>`;
+    if(!isExport){
+      const editBtn = document.createElement("button");
+      editBtn.className = "btn";
+      editBtn.style.padding = "2px 6px";
+      editBtn.style.fontSize = "10px";
+      editBtn.textContent = "✎";
+      editBtn.onclick = (e)=>{
+        e.stopPropagation();
+        openLabelModal(idx, key, lbl);
+      };
+      labelRow.appendChild(editBtn);
+    }
+    d.appendChild(labelRow);
+    const valueEl = document.createElement("div");
+    valueEl.className = "val";
+    valueEl.innerHTML = (val && String(val).trim().length) ? escapeHtml(val) : (isExport ? "" : `<span class="hint">タップして入力</span>`);
+    d.appendChild(valueEl);
     return d;
   };
 
-  const photo = (ph, key, size) => {
+  const photo = (ph, key, size, slot, slotIndex) => {
     const d = document.createElement("div");
     d.className = `photoCard ${size}`;
     d.onclick = () => openPhotoModal(idx, key);
@@ -253,9 +314,61 @@ function createPageBlocks(idx, isExport){
       d.appendChild(phEl);
     }
     const cap = document.createElement("div");
-    cap.className = "cap"; cap.textContent = ph?.cap || "写真";
+    cap.className = "cap"; cap.textContent = ph?.cap || slot?.label || "写真";
     d.appendChild(cap);
+
+    if(!isExport){
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "btn";
+      removeBtn.textContent = "×";
+      removeBtn.style.position = "absolute";
+      removeBtn.style.top = "4px";
+      removeBtn.style.right = "4px";
+      removeBtn.style.padding = "2px 7px";
+      removeBtn.style.borderRadius = "999px";
+      removeBtn.style.zIndex = "2";
+      removeBtn.onclick = (e)=>{
+        e.stopPropagation();
+        snapshotState();
+        p.photoSlots.splice(slotIndex, 1);
+        delete p.fields[key];
+        showToast("画像枠を削除しました");
+        render();
+      };
+      d.appendChild(removeBtn);
+    }
     return d;
+  };
+
+  const photoSlotsBlock = (title)=>{
+    const slotWrap = document.createElement("div");
+    slotWrap.className = "meta";
+    p.photoSlots.forEach((slot, slotIndex)=>{
+      const ph = f[slot.key] || createPhotoField(slot.label);
+      slotWrap.appendChild(photo(ph, slot.key, slot.size || "small", slot, slotIndex));
+    });
+    const items = [section(title), wrap(slotWrap)];
+    if(!isExport){
+      const ctl = document.createElement("div");
+      ctl.style.display = "flex";
+      ctl.style.gap = "8px";
+      const add = document.createElement("button");
+      add.className = "btn";
+      add.textContent = "＋ 画像枠を追加";
+      add.onclick = ()=>{
+        snapshotState();
+        const next = p.photoSlots.length + 1;
+        const key = `photo_custom_${p.id}_${Date.now()}`;
+        const label = `写真${next}`;
+        p.photoSlots.push({ key, size:"small", label });
+        p.fields[key] = createPhotoField(label);
+        showToast("画像枠を追加しました");
+        render();
+      };
+      ctl.appendChild(add);
+      items.push(wrap(ctl));
+    }
+    return items;
   };
 
   // --- コンテンツ生成 ---
@@ -278,7 +391,6 @@ function createPageBlocks(idx, isExport){
     g.appendChild(bUp);
 
     g.appendChild(box("氏名", f.childName, "childName", true));
-    
 
     const bBi = box("生年月日", f.birth, "birth", true);
     bBi.onclick = () => openDateModal(idx, "birth", "生年月日");
@@ -291,12 +403,7 @@ function createPageBlocks(idx, isExport){
     m.appendChild(g);
     blocks.push(wrap(m));
 
-    blocks.push(section("写真（好きなもの・安心グッズなど）"));
-    const row = document.createElement("div");
-    row.className = "meta";
-    row.appendChild(photo(f.photo1, "photo1", "small"));
-    row.appendChild(photo(f.photo2, "photo2", "small"));
-    blocks.push(wrap(row));
+    blocks.push(...photoSlotsBlock("写真（好きなもの・安心グッズなど）"));
   }
 
   else if(p.id==="p5"){
@@ -353,13 +460,7 @@ function createPageBlocks(idx, isExport){
       blocks.push(wrap(ctl));
     }
 
-    blocks.push(section("📸 補足写真"));
-    const prow = document.createElement("div");
-    prow.className = "meta";
-    prow.appendChild(photo(f.photo1, "photo1", "small"));
-    prow.appendChild(photo(f.photo2, "photo2", "small"));
-    prow.appendChild(photo(f.photo3, "photo3", "small"));
-    blocks.push(wrap(prow));
+    blocks.push(...photoSlotsBlock("📸 補足写真"));
 
     blocks.push(section("✉️ 先生へのメッセージ"));
     blocks.push(wrap(box("メッセージ", f.teacherMessage, "teacherMessage", false)));
@@ -375,10 +476,30 @@ function createPageBlocks(idx, isExport){
 
     const row = document.createElement("div");
     row.className = "meta";
-    row.appendChild(photo(f.photo1, "photo1", "small"));
-    row.appendChild(photo(f.photo2, "photo2", "small"));
-    row.appendChild(photo(f.photo3, "photo3", "small"));
+    p.photoSlots.forEach((slot, slotIndex)=>{
+      row.appendChild(photo(f[slot.key], slot.key, slot.size || "small", slot, slotIndex));
+    });
     blocks.push(wrap(row));
+    if(!isExport){
+      const ctl = document.createElement("div");
+      ctl.style.display = "flex";
+      ctl.style.gap = "8px";
+      const add = document.createElement("button");
+      add.className = "btn";
+      add.textContent = "＋ 画像枠を追加";
+      add.onclick = ()=>{
+        snapshotState();
+        const next = p.photoSlots.length + 1;
+        const key = `photo_custom_${p.id}_${Date.now()}`;
+        const label = `写真${next}`;
+        p.photoSlots.push({ key, size:"small", label });
+        p.fields[key] = createPhotoField(label);
+        showToast("画像枠を追加しました");
+        render();
+      };
+      ctl.appendChild(add);
+      blocks.push(wrap(ctl));
+    }
 
     const addField = (lbl, key) => blocks.push(wrap(box(lbl, f[key], key, false)));
 
@@ -462,6 +583,29 @@ function openTextModal(pIdx, key, lbl){
   `;
   document.getElementById("m-save").onclick = ()=>{
     setByPath(state.pages[pIdx].fields, key, document.getElementById("m-ta").value);
+    closeModal();
+  };
+  document.getElementById("m-close").onclick = closeModal;
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function openLabelModal(pIdx, key, defaultLabel){
+  const page = state.pages[pIdx];
+  ensurePageUI(page);
+  const now = page.textLabels[key] || defaultLabel;
+  mContent.innerHTML = `
+    <h3>タイトル名の変更</h3>
+    <input type="text" id="m-label" value="${escapeHtml(now)}" placeholder="タイトルを入力">
+    <div style="display:flex; gap:10px; margin-top:10px;">
+      <button class="btn primary" id="m-save-label" style="flex:1">保存</button>
+      <button class="btn" id="m-close" style="flex:1">閉じる</button>
+    </div>
+  `;
+  document.getElementById("m-save-label").onclick = ()=>{
+    const v = document.getElementById("m-label").value.trim();
+    snapshotState();
+    page.textLabels[key] = v || defaultLabel;
     closeModal();
   };
   document.getElementById("m-close").onclick = closeModal;
@@ -804,6 +948,16 @@ function normalizeState(obj){
   out.pages.forEach(tp=>{
     const sp = obj.pages.find(p=>p.id===tp.id);
     if(sp && sp.fields) Object.keys(tp.fields).forEach(k=> tp.fields[k] = sp.fields[k] ?? tp.fields[k]);
+    tp.textLabels = { ...(PAGE_TEXT_LABELS[tp.id] || {}), ...((sp && sp.textLabels) || {}) };
+    tp.photoSlots = clone((sp && sp.photoSlots) || (PAGE_PHOTO_SLOTS[tp.id] || []));
+    if(sp && sp.fields){
+      Object.keys(sp.fields).forEach(k=>{
+        if(tp.fields[k] == null && typeof sp.fields[k] === "object" && "src" in sp.fields[k]){
+          tp.fields[k] = sp.fields[k];
+        }
+      });
+    }
+    ensurePageUI(tp);
   });
   return out;
 }
