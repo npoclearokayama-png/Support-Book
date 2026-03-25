@@ -346,17 +346,17 @@ function createPageBlocks(idx, isExport){
       const rowSlots = p.photoSlots.slice(i, i+3);
       const slotWrap = document.createElement("div");
       slotWrap.className = "meta";
-      rowSlots.forEach((slot)=>{
-        const slotIndex = p.photoSlots.findIndex(s=>s.key===slot.key);
+      rowSlots.forEach((slot, offset)=>{
+        const slotIndex = i + offset;
         const ph = f[slot.key] || createPhotoField(slot.label);
         slotWrap.appendChild(photo(ph, slot.key, slot.size || "small", slot, slotIndex));
       });
       items.push(wrap(slotWrap));
     }
-    if(p.photoSlots.length===0){
+    if(p.photoSlots.length===0 && !isExport){
       const empty = document.createElement("div");
       empty.className = "note";
-      empty.textContent = isExport ? "" : "画像枠がありません";
+      empty.textContent = "画像枠がありません";
       items.push(wrap(empty));
     }
     if(!isExport){
@@ -489,8 +489,8 @@ function createPageBlocks(idx, isExport){
     for(let i=0; i<p.photoSlots.length; i+=3){
       const row = document.createElement("div");
       row.className = "meta";
-      p.photoSlots.slice(i, i+3).forEach((slot)=>{
-        const slotIndex = p.photoSlots.findIndex(s=>s.key===slot.key);
+      p.photoSlots.slice(i, i+3).forEach((slot, offset)=>{
+        const slotIndex = i + offset;
         row.appendChild(photo(f[slot.key], slot.key, slot.size || "small", slot, slotIndex));
       });
       blocks.push(wrap(row));
