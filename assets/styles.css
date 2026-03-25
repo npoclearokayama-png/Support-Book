@@ -66,10 +66,15 @@
     flex:0 0 auto; padding:8px 16px; border-radius:999px;
     border:1px solid #cbd5e1; background:#f8fafc; color: var(--muted);
     font-size:12px; cursor:pointer; font-weight:800; transition: all 0.2s ease; white-space:nowrap;
+    appearance:none;
   }
   .tab.active{
     background:var(--accent); color:#fff; border-color:var(--accent);
     box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.4); transform: translateY(-1px);
+  }
+  .tab:focus-visible, .btn:focus-visible{
+    outline: 3px solid rgba(37,99,235,0.45);
+    outline-offset: 2px;
   }
 
   /* Preview Stage */
@@ -202,7 +207,7 @@
     position:absolute; left:50%; top:50%; width:120%; height:auto;
     transform-origin:center; user-select:none; pointer-events:none;
   }
-  .controls{ display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-top:10px; }
+  .controls{ display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; margin-top:10px; }
   .controls .btn{ padding:10px 8px; font-size:12px; }
 
   /* Progress overlay */
@@ -216,6 +221,28 @@
 
   /* Export Host */
   #exportHost{ position:fixed; top:0; left:0; z-index:-9999; opacity:0; pointer-events:none; }
+  #toast{
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(15,23,42,0.95);
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    z-index: 250;
+    max-width: min(92vw, 560px);
+    text-align: center;
+  }
+  #toast.show{
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 
   /* Print CSS */
   @page { size:A4 portrait; margin:0; }
