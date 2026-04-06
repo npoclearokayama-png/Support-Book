@@ -73,6 +73,11 @@ function createPhotoField(label="写真"){
   return { src:"", s:1, x:0, y:0, r:0, cap:label };
 }
 
+function findPhotoSlot(page, key){
+  if(!page || !Array.isArray(page.photoSlots)) return null;
+  return page.photoSlots.find(s => s.key === key) || null;
+}
+
 function ensurePageUI(page){
   const defaultLabels = PAGE_TEXT_LABELS[page.id] || {};
   page.textLabels = { ...defaultLabels, ...(page.textLabels || {}) };
@@ -83,7 +88,7 @@ function ensurePageUI(page){
 
   page.photoSlots.forEach((slot, i)=>{
     if(!slot.key) slot.key = `photo_custom_${page.id}_${i+1}`;
-    if(!slot.size) slot.size = "small";
+    if(!["small","medium","large"].includes(slot.size)) slot.size = "small";
     if(!slot.label) slot.label = `写真${i+1}`;
     if(!page.fields[slot.key]) page.fields[slot.key] = createPhotoField(slot.label);
     if(!page.fields[slot.key].cap) page.fields[slot.key].cap = slot.label;
@@ -644,13 +649,25 @@ function closeModal(){
 /* 写真編集 */
 let phCtx = null;
 function openPhotoModal(pIdx, key){
-  const ph = state.pages[pIdx].fields[key];
-  phCtx = { pIdx, key, ph };
+  const page = state.pages[pIdx];
+  const ph = page.fields[key];
+  const slot = findPhotoSlot(page, key);
+  phCtx = { pIdx, key, ph, slot };
   mContent.innerHTML = `
     <h3>写真編集</h3>
     <div class="editor-canvas" id="canvas">
       ${ph.src ? `<img id="e-img" src="${ph.src}" alt="">` : `<div style="color:#cbd5e1; text-align:center; padding-top:110px; font-weight:900;">写真なし</div>`}
     </div>
+    ${slot ? `
+      <div style="margin-top:10px;">
+        <div class="lbl" style="margin-bottom:6px;">枠サイズ</div>
+        <div class="seg" role="group" aria-label="画像枠サイズ">
+          <button class="btn size-btn" id="e-size-small">小</button>
+          <button class="btn size-btn" id="e-size-medium">中</button>
+          <button class="btn size-btn" id="e-size-large">大</button>
+        </div>
+      </div>
+    ` : ``}
     <div class="controls">
       <button class="btn" id="e-pick">📸 選択</button>
       <button class="btn" id="e-zoom-in">＋ 拡大</button>
@@ -674,6 +691,31 @@ function openPhotoModal(pIdx, key){
   document.getElementById("e-del").onclick = ()=>{ snapshotState(); ph.src=""; ph.s=1; ph.x=0; ph.y=0; ph.r=0; syncEditor(true); };
   document.getElementById("e-center").onclick = ()=>{ snapshotState(); ph.x=0; ph.y=0; ph.s=1; ph.r=0; syncEditor(); };
   document.getElementById("e-done").onclick = ()=>{ setByPath(state.pages[pIdx].fields, `${key}.cap`, document.getElementById("e-cap").value); closeModal(); };
+  if(slot){
+    const setSize = (nextSize)=>{
+      if(!["small","medium","large"].includes(nextSize)) return;
+      if(slot.size === nextSize) return;
+      snapshotState();
+      slot.size = nextSize;
+      syncSizeButtons();
+    };
+    const syncSizeButtons = ()=>{
+      const all = [
+        ["e-size-small", "small"],
+        ["e-size-medium", "medium"],
+        ["e-size-large", "large"],
+      ];
+      all.forEach(([id, sizeName])=>{
+        const el = document.getElementById(id);
+        if(!el) return;
+        el.classList.toggle("active", (slot.size || "small") === sizeName);
+      });
+    };
+    document.getElementById("e-size-small").onclick = ()=> setSize("small");
+    document.getElementById("e-size-medium").onclick = ()=> setSize("medium");
+    document.getElementById("e-size-large").onclick = ()=> setSize("large");
+    syncSizeButtons();
+  }
 
   attachGestures();   // ←ここはそのまま
   syncEditor();
